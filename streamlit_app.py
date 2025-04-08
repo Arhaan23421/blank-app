@@ -11,14 +11,6 @@ def main():
     st.markdown(
 '''
 <style>
-.stApp {
-    background-color: #ffffff;
-    color: #000000;
-}
-.stExpander {
-    background-color: #262730;
-    color: #ffffff; # Adjust this for expander header color
-}
 strong {
     font-size: 150%;
 }
@@ -67,30 +59,33 @@ def make_graph(data, container):
         return size
 
     for category, frequency in category_counts.items():
-        nodes.append( Node(
-                        id=category, 
-                        label=category, 
-                        color = "#00FF00",
-                        size=scale_function(frequency), 
-                        shape="dot",
-                        font={'color': '#FFFFFF', 'size': scale_font_function(frequency)},
-                        ) 
-                    )
+        if category.lower() == 'nature':
+            nodes.append( Node(
+                            id=category, 
+                            label=category, 
+                            color = "#00FF00",
+                            size=scale_function(frequency), 
+                            shape="dot",
+                            font={'color': '#000000', 'size': scale_font_function(frequency)},
+                            ) 
+                        )
     for subcategory, frequency in subcategory_counts.items():
-        nodes.append( Node(
-                        id=subcategory, 
-                        label=subcategory, 
-                        size=scale_function(frequency), 
-                        shape="dot",
-                        font={'color': '#FFFFFF', 'size': scale_font_function(frequency)},
-                        ) 
-                    )
+        if subcategory_parents[subcategory].lower() == 'nature':
+            nodes.append( Node(
+                            id=subcategory, 
+                            label=subcategory, 
+                            size=scale_function(frequency), 
+                            shape="dot",
+                            font={'color': '#000000', 'size': scale_font_function(frequency)},
+                            ) 
+                        )
 
     for subcategory, category in subcategory_parents.items():
-        edges.append( Edge(source=subcategory, 
-                        target=category, 
+        if category.lower() == 'nature':
+            edges.append( Edge(source=subcategory, 
+                            target=category, 
+                            ) 
                         ) 
-                    ) 
 
     config = Config(width=700,
                     height=400,
@@ -111,11 +106,8 @@ def make_search_bar(data):
 
     paper_titles = list(data['Paper Title'].unique())
     paper_titles.append("Cumulative")
-    st.markdown("<span style=\"color:black;\">Select the paper you want to search</span>", unsafe_allow_html=True)
-    selection = st.selectbox("", paper_titles)
-
-    st.markdown("<span style=\"color:black;\">Enter term you want to search</span>", unsafe_allow_html=True)
-    search_term = st.text_input("")
+    selection = st.selectbox("Select the paper you want to search", paper_titles)
+    search_term = st.text_input("Enter term you want to search")
 
     if search_term:
         if selection == 'Cumulative':
@@ -132,12 +124,7 @@ def make_search_bar(data):
 
 
 def make_search_results(search_term, results, occurences):
-    search_results_container = stylable_container(key="search results", css_styles="""
-        {
-            background-color: grey;
-            color: white;
-        }
-        """)
+    search_results_container = st.container()
     search_results_container.write(f'The term "{search_term}" occured {occurences} time(s)')
     # results = results.map(lambda x: x.replace(search_term, f'**{search_term}**'))
     search_results_container.table(results.reset_index()["Surrounding Sentence"])

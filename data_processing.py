@@ -16,19 +16,40 @@ def process_data():
         soup = BeautifulSoup(html_content, "html.parser")
         paper_title = soup.find('title').text
 
-        for span in soup.find_all("span"):
-            category = span.get("data-category")
-            subcategory = span.get("data-subcategory")
+        # for span in soup.find_all("span"):
+        #     category = span.get("data-category")
+        #     subcategory = span.get("data-subcategory")
 
-            paragraph = span.parent.text;
-            text = span.text
+        #     paragraph = span.parent.text;
+        #     text = span.text
 
-            paragraph = paragraph[:].replace(text, f'**{text}**')
+        #     paragraph = paragraph[:].replace(text, f'**{text}**')
 
-            if category:
-                data.append([paper_title, 'Category', category, paragraph, "None"])
-            if subcategory:
-                data.append([paper_title, 'Subcategory', subcategory, paragraph, category])
+        #     if category:
+        #         data.append([paper_title, 'Category', category, paragraph, "None"])
+        #     if subcategory:
+        #         data.append([paper_title, 'Subcategory', subcategory, paragraph, category])
+
+        for paragraph in soup.find_all('p'):
+            content = str(paragraph)[3:-4]
+            sentences = re.findall(r"\S[^\.\?!]+[\.\?!]", content.replace('\n', ''))
+            for sentence in sentences:
+                sent_obj = BeautifulSoup(f'<div><p>{sentence}</p></div>', 'html.parser')
+                for span in sent_obj.find_all("span"):
+                    category = span.get("data-category")
+                    subcategory = span.get("data-subcategory")
+
+
+                    
+                    # span.string = f'**{span.text}**';
+            
+                    text = span.parent.text
+
+                    if category:
+                        data.append([paper_title, 'Category', category, text, "None"])
+                    if subcategory:
+                        data.append([paper_title, 'Subcategory', subcategory, text, category])
+
         
         page_text = soup.find("body").get_text()
 
@@ -40,3 +61,4 @@ def process_data():
     df = pd.DataFrame(data, columns=columns)
     return df
 
+7
