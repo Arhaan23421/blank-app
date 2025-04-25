@@ -5,6 +5,7 @@ from collections import Counter, defaultdict
 from data_processing import process_data
 from streamlit_agraph import agraph, Node, Edge, Config
 from unidecode import unidecode
+import re
 #  background-image: url("https://static.vecteezy.com/system/resources/previews/024/399/235/large_2x/abstract-futuristic-wave-background-illustration-ai-generative-free-photo.jpg");
 def main():
     st.markdown(
@@ -32,9 +33,14 @@ def make_title():
 #  need to change the font color of title to black here
 def make_graph(data, container):
 
-    category_counts = data[data["Term Type"] == "Category"].groupby("Term").size().to_dict()
-    subcategory_counts = data[data["Term Type"] == "Subcategory"].groupby("Term").size().to_dict()
-    subcategory_parents = data[data["Term Type"] == "Subcategory"].drop_duplicates(subset=['Term']).set_index('Term').to_dict()['Parent Category']
+    # category_counts = data[data["Term Type"] == "Category"].groupby("Term").size().to_dict()
+    # subcategory_counts = data[data["Term Type"] == "Subcategory"].groupby("Term").size().to_dict()
+    # subcategory_parents = data[data["Term Type"] == "Subcategory"].drop_duplicates(subset=['Term']).set_index('Term').to_dict()['Parent Category']
+
+    category_level_counts = []
+    for i in range(4):
+        category_counts = data[data[f'Cat-{i}'].notna()].groupby(f"Cat-{i}").size().to_dict()
+        category_level_counts.append(category_counts)
 
     nodes = []
     edges = []
@@ -42,8 +48,8 @@ def make_graph(data, container):
     def scale_function(frequency):
         min_freq = 1
         max_freq = max(category_counts.values())
-        min_size = 10
-        max_size = 30
+        min_size = 15
+        max_size = 25
         freq_percent = (frequency - min_freq) / (max_freq - min_freq)
         size = freq_percent * (max_size - min_size) + min_size
         return size
@@ -51,40 +57,33 @@ def make_graph(data, container):
     def scale_font_function(frequency):
         min_freq = 1
         max_freq = max(category_counts.values())
-        min_size = 10
-        max_size = 30
+        min_size = 20
+        max_size = 25
         freq_percent = (frequency - min_freq) / (max_freq - min_freq)
         size = freq_percent * (max_size - min_size) + min_size
         return size
 
-    for category, frequency in category_counts.items():
-        if category.lower() == 'nature':
+    colors = ["#4281F5","#F5B642","#42F54B","#F5424E"]
+
+    for cat_level in range(4):
+        for category, frequency in category_level_counts[cat_level].items():
             nodes.append( Node(
-                            id=category, 
-                            label=category, 
-                            color = "#00FF00",
-                            size=scale_function(frequency), 
-                            shape="dot",
-                            font={'color': '#000000', 'size': scale_font_function(frequency)},
-                            ) 
-                        )
-    for subcategory, frequency in subcategory_counts.items():
-        if subcategory_parents[subcategory].lower() == 'nature':
-            nodes.append( Node(
-                            id=subcategory, 
-                            label=subcategory, 
+                            id=f'{category}', 
+                            label=category.split(':')[-1], 
+                            color = colors[cat_level],
                             size=scale_function(frequency), 
                             shape="dot",
                             font={'color': '#000000', 'size': scale_font_function(frequency)},
                             ) 
                         )
 
-    for subcategory, category in subcategory_parents.items():
-        if category.lower() == 'nature':
-            edges.append( Edge(source=subcategory, 
-                            target=category, 
+    for cat_level in range(4):
+        for category, frequency in category_level_counts[cat_level].items():
+            if ':' in category:
+                edges.append( Edge(source=category, 
+                                target=category[:category.rfind(':')], 
+                                ) 
                             ) 
-                        ) 
 
     config = Config(width=700,
                     height=400,
@@ -99,7 +98,14 @@ def make_graph(data, container):
         agraph(nodes=nodes, edges=edges, config=config)
     
 def match_term(search_term):
-    return lambda row: unidecode(row["Term"]).lower() == unidecode(search_term).lower()
+    def matcher(row):
+        if unidecode(row["Term"]).lower() == unidecode(search_term).lower():
+            return True
+        for i in range(4):
+            if (unidecode(row[f"Cat-{i}"] or '')).split(':')[-1].lower() == unidecode(search_term).lower():
+                return True
+        return False
+    return matcher
 
 def make_search_bar(data):
 
@@ -117,43 +123,72 @@ def make_search_bar(data):
             rows = paper_terms[paper_terms.apply(match_term(search_term), axis=1)]
         
         occurences = len(rows)
-        sentences = rows['Surrounding Sentence']
+        sentences = rows[['Term', 'Surrounding Sentence']]
         with st.expander("Search results:", expanded=True):
             make_search_results(search_term, sentences, occurences)
 
 
 def make_search_results(search_term, results, occurences):
+
+    def bold(row):
+        term = row['Term']
+        sent = row['Surrounding Sentence']
+        return re.sub(rf'\b{term}\b', f'**{term}**', sent)
+
+    results = results.apply(bold, axis=1)
+
     search_results_container = st.container()
     search_results_container.write(f'The term "{search_term}" occured {occurences} time(s)')
     # results = results.map(lambda x: x.replace(search_term, f'**{search_term}**'))
-    search_results_container.table(results.reset_index()["Surrounding Sentence"])
+    search_results_container.table(results.reset_index())
 
 def make_individual_statistics(data):
     for paper_title in data['Paper Title'].unique():
         df_temp = data[data['Paper Title'] == paper_title]
+        filename = df_temp["File Name"].iloc[0]
 
-        categories = df_temp[df_temp['Term Type'] == 'Category']['Term']
-        subcategories = df_temp[df_temp['Term Type'] == 'Subcategory']['Term']
+        get_last = lambda s: s.split(':')[-1]
+
+        category_levels = []
+        for i in range(4):
+            category_levels.append(df_temp[df_temp[f'Cat-{i}'].notna()][f'Cat-{i}'])
 
 
         with st.expander(paper_title):
             stats_container = st.container()
+        
+        if stats_container.button("Source Document", key=paper_title):
+            document_view(paper_title, filename)
+    
 
         display_file_statistics(paper_title, {
-            'Category': Counter(categories),
-            'Subcategory': Counter(subcategories)
+            'Cat-0': Counter(category_levels[0]),
+            'Cat-1': Counter(category_levels[1]),
+            'Cat-2': Counter(category_levels[2]),
+            'Cat-3': Counter(category_levels[3]),
         }, stats_container)
 
+@st.dialog("Source Document", width="large")
+def document_view(document, filename):
+    with open(filename) as file:
+        body = file.read()
+        st.html(body)
+    
+
 def make_cumulative_statistics(data):
-    categories = data[data['Term Type'] == 'Category']['Term']
-    subcategories = data[data['Term Type'] == 'Subcategory']['Term']
+
+    category_levels = []
+    for i in range(4):
+        category_levels.append(data[data[f'Cat-{i}'].notna()][f'Cat-{i}'])
 
     with st.expander('Cumulative', expanded=True):
         stats_container = st.container()
 
     display_file_statistics('Cumulative', {
-        'Category': Counter(categories),
-        'Subcategory': Counter(subcategories),
+            'Cat-0': Counter(category_levels[0]),
+            'Cat-1': Counter(category_levels[1]),
+            'Cat-2': Counter(category_levels[2]),
+            'Cat-3': Counter(category_levels[3]),
     }, stats_container)
 
     make_graph(data, stats_container)
@@ -165,16 +200,17 @@ def display_file_statistics(header, data, stats_container):
     cols = stats_container.columns(len(data))
 
     for i, (name, counts) in enumerate(data.items()):
+        counts = {k.split(':')[-1]: v for k, v in counts.items()}
         df = pd.DataFrame(counts.items(), columns=[name, 'Count']).sort_values(by="Count", ascending=False)
         cols[i].dataframe(df)
 
     # Plot the bar graph hardcoded for categories
-    category_df = pd.DataFrame(data['Category'].items(), columns=['Category', 'Count']).sort_values(by="Count", ascending=False)
+    category_df = pd.DataFrame(data['Cat-1'].items(), columns=['Cat-1', 'Count']).sort_values(by="Count", ascending=False)
     fig = plt.figure(figsize=(10, 6))
     ax = fig.add_subplot(111)
-    ax.barh(category_df["Category"], category_df["Count"], color="skyblue")
+    ax.barh(category_df["Cat-1"].map(lambda s: s.split(':')[-1]), category_df["Count"], color="skyblue")
     ax.set_xlabel("Frequency")
-    ax.set_ylabel("Category")
+    ax.set_ylabel("Cat-1")
     ax.set_title("Occurrences of Each Data-Category in the Text")
     ax.invert_yaxis()
     stats_container.pyplot(fig)
