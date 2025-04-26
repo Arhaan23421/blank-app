@@ -26,11 +26,8 @@ strong {
     
 
 def make_title():
-    st.title("António Vieira")
-    st.write(
-        " Here is information on themes and ideas in Antonio vieira's work [ I will add more deesciption once more works are in]"
-    )
-#  need to change the font color of title to black here
+    st.title("António Vieira: Opera Omnia")
+
 def make_graph(data, container):
 
     # category_counts = data[data["Term Type"] == "Category"].groupby("Term").size().to_dict()
@@ -64,26 +61,29 @@ def make_graph(data, container):
         return size
 
     colors = ["#4281F5","#F5B642","#42F54B","#F5424E"]
+    sizes = [0, 40, 25, 15]
+    text_sizes = [0, 40, 30, 30]
 
-    for cat_level in range(4):
+    for cat_level in range(1, 4):
         for category, frequency in category_level_counts[cat_level].items():
             nodes.append( Node(
                             id=f'{category}', 
                             label=category.split(':')[-1], 
                             color = colors[cat_level],
-                            size=scale_function(frequency), 
+                            size=sizes[cat_level], 
                             shape="dot",
-                            font={'color': '#000000', 'size': scale_font_function(frequency)},
+                            font={'color': '#000000', 'size': text_sizes[cat_level]},
                             ) 
                         )
 
-    for cat_level in range(4):
+    for cat_level in range(1, 4):
         for category, frequency in category_level_counts[cat_level].items():
             if ':' in category:
-                edges.append( Edge(source=category, 
-                                target=category[:category.rfind(':')], 
+                edges.append( Edge(
+                                source=category, 
+                                target=category[:category.rfind(':')],
                                 ) 
-                            ) 
+                            )
 
     config = Config(width=700,
                     height=400,
@@ -110,7 +110,7 @@ def match_term(search_term):
 def make_search_bar(data):
 
     paper_titles = list(data['Paper Title'].unique())
-    paper_titles.append("Cumulative")
+    paper_titles.insert(0, "Cumulative")
     selection = st.selectbox("Select the paper you want to search", paper_titles)
     search_term = st.text_input("Enter term you want to search")
 
@@ -123,7 +123,7 @@ def make_search_bar(data):
             rows = paper_terms[paper_terms.apply(match_term(search_term), axis=1)]
         
         occurences = len(rows)
-        sentences = rows[['Term', 'Surrounding Sentence']]
+        sentences = rows[['Term', 'Surrounding Sentence', 'Paper Title']]
         with st.expander("Search results:", expanded=True):
             make_search_results(search_term, sentences, occurences)
 
@@ -133,14 +133,22 @@ def make_search_results(search_term, results, occurences):
     def bold(row):
         term = row['Term']
         sent = row['Surrounding Sentence']
-        return re.sub(rf'\b{term}\b', f'**{term}**', sent)
+        return re.sub(rf'\b{term}\b', f'<b>{term}</b>', sent)
 
-    results = results.apply(bold, axis=1)
+    results['Sentence'] = results.apply(bold, axis=1)
 
     search_results_container = st.container()
     search_results_container.write(f'The term "{search_term}" occured {occurences} time(s)')
-    # results = results.map(lambda x: x.replace(search_term, f'**{search_term}**'))
-    search_results_container.table(results.reset_index())
+    html_table = '''| | Sentence | Source |
+| --- | --- | --- |'''
+
+    i = 1
+    for _, data in results.iterrows():
+        html_table += f'\n| {i} | {data["Sentence"]} | {data["Paper Title"]} |'
+        i += 1
+
+
+    st.markdown(html_table, unsafe_allow_html=True)
 
 def make_individual_statistics(data):
     for paper_title in data['Paper Title'].unique():
