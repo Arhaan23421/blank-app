@@ -40,6 +40,8 @@ def make_graph(data, container):
         category_level_counts.append(category_counts)
 
     nodes = []
+    nodes_no_red = []
+    nodes_only_top = []
     edges = []
 
     def scale_function(frequency):
@@ -75,6 +77,26 @@ def make_graph(data, container):
                             font={'color': '#000000', 'size': text_sizes[cat_level]},
                             ) 
                         )
+            if cat_level < 3:
+                nodes_no_red.append( Node(
+                            id=f'{category}', 
+                            label=category.split(':')[-1], 
+                            color = colors[cat_level],
+                            size=sizes[cat_level], 
+                            shape="dot",
+                            font={'color': '#000000', 'size': text_sizes[cat_level]},
+                            ) 
+                        )
+            if cat_level < 2:
+                nodes_only_top.append( Node(
+                            id=f'{category}', 
+                            label=category.split(':')[-1], 
+                            color = colors[cat_level],
+                            size=sizes[cat_level], 
+                            shape="dot",
+                            font={'color': '#000000', 'size': text_sizes[cat_level]},
+                            ) 
+                        )
 
     for cat_level in range(1, 4):
         for category, frequency in category_level_counts[cat_level].items():
@@ -82,6 +104,7 @@ def make_graph(data, container):
                 edges.append( Edge(
                                 source=category, 
                                 target=category[:category.rfind(':')],
+                                length=300
                                 ) 
                             )
 
@@ -90,12 +113,22 @@ def make_graph(data, container):
                     directed=True, 
                     physics=True, 
                     hierarchical=False,
-                    interaction={'zoomView': False}
+                    interaction={'zoomView': False},
+                    solver="hierarchicalRepulsion",
+                    avoidOverlap=1
                     )
 
 
     with container:
-        agraph(nodes=nodes, edges=edges, config=config)
+        view_selection = st.radio(
+            "Display Levels",
+            ["All", "Top two", "Only Top"])
+        if view_selection == 'All':
+            agraph(nodes=nodes, edges=edges, config=config)
+        elif view_selection == 'Top two':
+            agraph(nodes=nodes_no_red, edges=edges, config=config)
+        else:
+            agraph(nodes=nodes_only_top, edges=edges, config=config)
     
 def match_term(search_term):
     def matcher(row):
