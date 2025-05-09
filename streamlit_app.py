@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 from collections import Counter, defaultdict
-from data_processing import process_data
+from data_processing import process_data, document_search
 from streamlit_agraph import agraph, Node, Edge, Config
 from unidecode import unidecode
 import re
@@ -130,15 +130,15 @@ def make_graph(data, container):
         else:
             agraph(nodes=nodes_only_top, edges=edges, config=config)
     
-def match_term(search_term):
-    def matcher(row):
-        if unidecode(row["Term"]).lower() == unidecode(search_term).lower():
-            return True
-        for i in range(4):
-            if (unidecode(row[f"Cat-{i}"] or '')).split(':')[-1].lower() == unidecode(search_term).lower():
-                return True
-        return False
-    return matcher
+# def match_term(search_term):
+#     def matcher(row):
+#         if unidecode(row["Term"]).lower() == unidecode(search_term).lower():
+#             return True
+#         for i in range(4):
+#             if (unidecode(row[f"Cat-{i}"] or '')).split(':')[-1].lower() == unidecode(search_term).lower():
+#                 return True
+#         return False
+#     return matcher
 
 def make_search_bar(data):
 
@@ -148,17 +148,21 @@ def make_search_bar(data):
     search_term = st.text_input("Enter term you want to search")
 
     if search_term:
-        if selection == 'Cumulative':
-            # Search by 'Term' only, NOT by checking sentence text
-            rows = data[data.apply(match_term(search_term), axis=1)]
-        else:
-            paper_terms = data[data['Paper Title'] == selection]
-            rows = paper_terms[paper_terms.apply(match_term(search_term), axis=1)]
+        rows = document_search(search_term, selection)
+        # if selection == 'Cumulative':
+        #     # Search by 'Term' only, NOT by checking sentence text
+        #     rows = data[data.apply(match_term(search_term), axis=1)]
+        # else:
+        #     paper_terms = data[data['Paper Title'] == selection]
+        #     rows = paper_terms[paper_terms.apply(match_term(search_term), axis=1)]
         
         occurences = len(rows)
-        sentences = rows[['Term', 'Surrounding Sentence', 'Paper Title']]
-        with st.expander("Search results:", expanded=True):
-            make_search_results(search_term, sentences, occurences)
+        if occurences:
+            # sentences = rows[['Term', 'Surrounding Sentence', 'Paper Title']]
+            with st.expander("Search results:", expanded=True):
+                make_search_results(search_term, rows, occurences)
+        else:
+            st.text('No results found')
 
 
 def make_search_results(search_term, results, occurences):
@@ -166,7 +170,14 @@ def make_search_results(search_term, results, occurences):
     def bold(row):
         term = row['Term']
         sent = row['Surrounding Sentence']
-        return re.sub(rf'\b{term}\b', f'<b>{term}</b>', sent)
+        new_context = ''
+        prev_index = 0
+        for match in re.finditer(unidecode(re.escape(term)).lower(), unidecode(sent).lower()):
+            new_context += sent[prev_index:match.start()]
+            new_context += f'<b>{sent[match.start():match.end()]}</b>'
+            prev_index = match.end()
+        new_context += sent[prev_index:]
+        return new_context
 
     results['Sentence'] = results.apply(bold, axis=1)
 
@@ -246,14 +257,14 @@ def display_file_statistics(header, data, stats_container):
         cols[i].dataframe(df)
 
     # Plot the bar graph hardcoded for categories
-    category_df = pd.DataFrame(data['Cat-1'].items(), columns=['Cat-1', 'Count']).sort_values(by="Count", ascending=False)
-    fig = plt.figure(figsize=(10, 6))
-    ax = fig.add_subplot(111)
-    ax.barh(category_df["Cat-1"].map(lambda s: s.split(':')[-1]), category_df["Count"], color="skyblue")
-    ax.set_xlabel("Frequency")
-    ax.set_ylabel("Cat-1")
-    ax.set_title("Occurrences of Each Data-Category in the Text")
-    ax.invert_yaxis()
-    stats_container.pyplot(fig)
+    # category_df = pd.DataFrame(data['Cat-1'].items(), columns=['Cat-1', 'Count']).sort_values(by="Count", ascending=False)
+    # fig = plt.figure(figsize=(10, 6))
+    # ax = fig.add_subplot(111)
+    # ax.barh(category_df["Cat-1"].map(lambda s: s.split(':')[-1]), category_df["Count"], color="skyblue")
+    # ax.set_xlabel("Frequency")
+    # ax.set_ylabel("Cat-1")
+    # ax.set_title("Occurrences of Each Data-Category in the Text")
+    # ax.invert_yaxis()
+    # stats_container.pyplot(fig)
 
 main()
