@@ -8,32 +8,43 @@ from unidecode import unidecode
 import re
 #  background-image: url("https://static.vecteezy.com/system/resources/previews/024/399/235/large_2x/abstract-futuristic-wave-background-illustration-ai-generative-free-photo.jpg");
 def main():
-    st.markdown(
+    st.set_page_config(layout="wide")
+
+    st.html(
 '''
 <style>
 strong {
     font-size: 150%;
 }
+
+[class*="st-key-graphcontainer"] {
+    color: red;
+    width: 500px;
+    height: 400px;
+}
 </style>
-''', 
-    unsafe_allow_html=True)
+''')
 
     data = process_data()
+
     make_title()
-    make_search_bar(data)
-    make_individual_statistics(data)
-    make_cumulative_statistics(data)
+
+    tabs = st.tabs(['Home', 'Text', 'Graph', 'Table'])
+
+    with tabs[0]: # Home
+        make_search_bar(data)
+    with tabs[1]: # Text
+        make_text_buttons(data)
+    with tabs[2]: # Graph
+        make_graph(data)
+    with tabs[3]: # Table
+        make_individual_statistics(data)
     
 
 def make_title():
     st.title("António Vieira: Opera Omnia")
 
-def make_graph(data, container):
-
-    # category_counts = data[data["Term Type"] == "Category"].groupby("Term").size().to_dict()
-    # subcategory_counts = data[data["Term Type"] == "Subcategory"].groupby("Term").size().to_dict()
-    # subcategory_parents = data[data["Term Type"] == "Subcategory"].drop_duplicates(subset=['Term']).set_index('Term').to_dict()['Parent Category']
-
+def make_graph(data):
     category_level_counts = []
     for i in range(4):
         category_counts = data[data[f'Cat-{i}'].notna()].groupby(f"Cat-{i}").size().to_dict()
@@ -65,6 +76,7 @@ def make_graph(data, container):
     colors = ["#4281F5","#F5B642","#42F54B","#F5424E"]
     sizes = [0, 40, 25, 15]
     text_sizes = [0, 40, 30, 30]
+    edge_length = 10
 
     for cat_level in range(1, 4):
         for category, frequency in category_level_counts[cat_level].items():
@@ -104,25 +116,26 @@ def make_graph(data, container):
                 edges.append( Edge(
                                 source=category, 
                                 target=category[:category.rfind(':')],
-                                length=300
+                                length=edge_length
                                 ) 
                             )
 
-    config = Config(width=700,
-                    height=400,
+    config = Config(width="100%",
+                    height=500,
                     directed=True, 
                     physics=True, 
                     hierarchical=False,
-                    interaction={'zoomView': False},
+                    # interaction={'zoomView': False},
                     solver="hierarchicalRepulsion",
                     avoidOverlap=1
                     )
 
 
-    with container:
-        view_selection = st.radio(
-            "Display Levels",
-            ["All", "Top two", "Only Top"])
+    # with container:
+    view_selection = st.radio(
+        "Display Levels",
+        ["All", "Top two", "Only Top"])
+    with st.container(key='graphcontainer', border=True):
         if view_selection == 'All':
             agraph(nodes=nodes, edges=edges, config=config)
         elif view_selection == 'Top two':
@@ -130,22 +143,13 @@ def make_graph(data, container):
         else:
             agraph(nodes=nodes_only_top, edges=edges, config=config)
     
-# def match_term(search_term):
-#     def matcher(row):
-#         if unidecode(row["Term"]).lower() == unidecode(search_term).lower():
-#             return True
-#         for i in range(4):
-#             if (unidecode(row[f"Cat-{i}"] or '')).split(':')[-1].lower() == unidecode(search_term).lower():
-#                 return True
-#         return False
-#     return matcher
 
 def make_search_bar(data):
 
     paper_titles = list(data['Paper Title'].unique())
     paper_titles.insert(0, "Cumulative")
-    selection = st.selectbox("Select the paper you want to search", paper_titles)
-    search_term = st.text_input("Enter term you want to search")
+    selection = st.selectbox("Select text", paper_titles)
+    search_term = st.text_input("Search Term")
 
     if search_term:
         rows = document_search(search_term, selection)
@@ -194,6 +198,14 @@ def make_search_results(search_term, results, occurences):
 
     st.markdown(html_table, unsafe_allow_html=True)
 
+def make_text_buttons(data):
+    for paper_title in data['Paper Title'].unique():
+        df_temp = data[data['Paper Title'] == paper_title]
+        filename = df_temp["File Name"].iloc[0]
+        
+        if st.button(paper_title, key=paper_title):
+            document_view(paper_title, filename)
+
 def make_individual_statistics(data):
     for paper_title in data['Paper Title'].unique():
         df_temp = data[data['Paper Title'] == paper_title]
@@ -208,9 +220,6 @@ def make_individual_statistics(data):
 
         with st.expander(paper_title):
             stats_container = st.container()
-        
-        if stats_container.button("Source Document", key=paper_title):
-            document_view(paper_title, filename)
     
 
         display_file_statistics(paper_title, {
