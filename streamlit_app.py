@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import matplotlib.pyplot as plt
 from collections import Counter, defaultdict
@@ -6,6 +7,7 @@ from data_processing import process_data, document_search
 from streamlit_agraph import agraph, Node, Edge, Config
 from unidecode import unidecode
 import re
+
 #  background-image: url("https://static.vecteezy.com/system/resources/previews/024/399/235/large_2x/abstract-futuristic-wave-background-illustration-ai-generative-free-photo.jpg");
 def main():
     st.set_page_config(layout="wide")
@@ -27,22 +29,41 @@ strong {
 
     data = process_data()
 
-    make_title()
 
-    tabs = st.tabs(['Home', 'Text', 'Graph', 'Table'])
+    # top_bar = st.columns(3)
+    # top_bar[0].title("Arquivo de Antonio Vieira")
+    # tabs = top_bar[2].tabs(['Home', 'Text', 'Graph', 'Table'])
 
-    with tabs[0]: # Home
+    # if tabs[0]: # Home
+    #     make_search_bar(data)
+    # if tabs[1]: # Text
+    #     make_text_buttons(data)
+    # if tabs[2]: # Graph
+    #     make_graph(data)
+    # if tabs[3]: # Table
+    #     make_individual_statistics(data)
+
+    def label_format(s):
+        return s
+
+
+    with st.sidebar:
+        st.title("Arquivo de Antonio Vieira")
+        selected_page = st.radio('Pages', ['Home', 'Texts', 'Graph', 'Table'], format_func=label_format)
+
+    if selected_page == 'Home':
+        st.title(selected_page)
         make_search_bar(data)
-    with tabs[1]: # Text
+    if selected_page == 'Texts':
+        st.title(selected_page)
         make_text_buttons(data)
-    with tabs[2]: # Graph
+    if selected_page == 'Graph':
+        st.title(selected_page)
         make_graph(data)
-    with tabs[3]: # Table
+    if selected_page == 'Table':
+        st.title(selected_page)
         make_individual_statistics(data)
     
-
-def make_title():
-    st.title("António Vieira: Opera Omnia")
 
 def make_graph(data):
     category_level_counts = []
@@ -150,8 +171,9 @@ def make_search_bar(data):
     paper_titles.insert(0, "Cumulative")
     selection = st.selectbox("Select text", paper_titles)
     search_term = st.text_input("Search Term")
+    search_button = st.button("Search")
 
-    if search_term:
+    if search_term or search_button:
         rows = document_search(search_term, selection)
         # if selection == 'Cumulative':
         #     # Search by 'Term' only, NOT by checking sentence text
@@ -164,12 +186,12 @@ def make_search_bar(data):
         if occurences:
             # sentences = rows[['Term', 'Surrounding Sentence', 'Paper Title']]
             with st.expander("Search results:", expanded=True):
-                make_search_results(search_term, rows, occurences)
+                make_search_results(search_term, rows, occurences, data)
         else:
             st.text('No results found')
 
 
-def make_search_results(search_term, results, occurences):
+def make_search_results(search_term, results, occurences, data):
 
     def bold(row):
         term = row['Term']
@@ -185,6 +207,19 @@ def make_search_results(search_term, results, occurences):
 
     results['Sentence'] = results.apply(bold, axis=1)
 
+    st.text('Dcouments containing search term:')
+
+    papers_in_results = results['Paper Title'].unique()
+
+    for paper_title in data['Paper Title'].unique():
+        if paper_title in papers_in_results:
+            df_temp = data[data['Paper Title'] == paper_title]
+            filename = df_temp["File Name"].iloc[0]
+            
+            if st.button(paper_title, key=paper_title):
+                document_view(paper_title, filename)
+
+
     search_results_container = st.container()
     search_results_container.write(f'The term "{search_term}" occured {occurences} time(s)')
     html_table = '''| | Sentence | Source |
@@ -194,7 +229,6 @@ def make_search_results(search_term, results, occurences):
     for _, data in results.iterrows():
         html_table += f'\n| {i} | {data["Sentence"]} | {data["Paper Title"]} |'
         i += 1
-
 
     st.markdown(html_table, unsafe_allow_html=True)
 

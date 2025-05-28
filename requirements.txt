@@ -4,3 +4,12 @@ matplotlib
 beautifulsoup4
 streamlit-agraph
 unidecode
+
+
+streamlit-ace
+streamlit-discourse
+streamlit-disqus
+streamlit-elements
+streamlit-pandas-profiling
+streamlit-player
+streamlit-quill
